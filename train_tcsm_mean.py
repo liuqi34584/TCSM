@@ -226,7 +226,7 @@ def main():
     for epoch in range(start_epoch, args.epochs):
         # test
         if (epoch) % 50 == 0:
-            print('229：到这里加载很慢，大部分卡在这里', args)
+            print('229:到这里加载很慢,大部分卡在这里', args)
             val_loss, val_result = multi_validate(val_loader, model, criterion, epoch, use_cuda, args)
             test_loss, val_ema_result = multi_validate(val_loader, ema_model, criterion, epoch, use_cuda, args)
             step = args.val_iteration * (epoch)
