@@ -10,15 +10,14 @@ https://github.com/xmengli/TCSM
 ## 基础编译环境
 windows10  
 GPU NVIDIA GeForce GTX 1050 Ti  
-CUDA11.3 
+CUDA版本 11.3 
 1. python         3.8.3
-2. torch          1.12.1
+2. torch          1.10.0
 3. torchvision    0.11.1
-4. numpy          1.21.5
-5. 其他包按照提示安装即可
+4. 其他包按照提示安装即可
 
 ## 数据集
 本工程只是跑通例子，只是放了10张ISIC2017的图片
-数据集在data目录下
+
 
 

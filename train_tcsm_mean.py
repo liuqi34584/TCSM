@@ -256,21 +256,6 @@ def main():
             writer.add_scalar('Ema_model/SP', val_ema_result[4], step)
             # scheduler.step()
 
-            print('Val/loss', val_loss, step)
-            print('Val/ema_loss', test_loss, step)
-
-            print('Model/JA', val_result[0], step)
-            print('Model/AC', val_result[1], step)
-            print('Model/DI', val_result[2], step)
-            print('Model/SE', val_result[3], step)
-            print('Model/SP', val_result[4], step)
-
-            print('Ema_model/JA', val_ema_result[0], step)
-            print('Ema_model/AC', val_ema_result[1], step)
-            print('Ema_model/DI', val_ema_result[2], step)
-            print('Ema_model/SE', val_ema_result[3], step)
-            print('Ema_model/SP', val_ema_result[4], step)
-
             # save model
             big_result = max(val_result[0], val_ema_result[0])
             is_best = big_result > best_acc
