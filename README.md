@@ -1,36 +1,24 @@
 ## Transformation Consistent Self-ensembling Model for Semi-supervised Medical Image Segmentation
 
-Pytorch implementation of TCSM <br/>
-
-## Paper
+## 论文地址
 [Transformation Consistent Self-ensembling Model for Semi-supervised Medical Image Segmentation](https://arxiv.org/pdf/1903.00348.pdf)
-<br/>
-<p align="center">
-  <img src="figure/framework.png">
-</p>
 
-## Installation
-* Install Pytorch 1.1.0 and CUDA 9.0
-* Clone this repo
-```
-git clone https://github.com/xmengli999/TCSM
-cd TCSM
-```
 
-## Data Preparation
-* Download [Skin dataset](https://challenge.kitware.com/#phase/5841916ccad3a51cc66c8db0), [REFUGE dataset](https://refuge.grand-challenge.org/REFUGE2018/), [Liver CT dataset](https://competitions.codalab.org/competitions/17094#phases) <br/>
-* Put the data under `./data/`
+## 原代码地址
+https://github.com/xmengli/TCSM
 
-## Train
-* cd `scripts_skin` 
-* Run `sh train_50tcsm.sh` to start the training process
+## 基础编译环境
+windows10  
+GPU NVIDIA GeForce GTX 1050 Ti  
+CUDA11.3 
+1. python         3.8.3
+2. torch          1.12.1
+3. torchvision    0.11.1
+4. numpy          1.21.5
+5. 其他包按照提示安装即可
 
-## Evaluate
-* Specify the model path in `eval.sh`
-* Run `sh eval.sh` to start the evaluation.
+## 数据集
+本工程只是跑通例子，只是放了10张ISIC2017的图片
+数据集在data目录下
 
-## Acknowledgement
-Some code is reused from the [Pytorch implementation of mean teacher](https://github.com/CuriousAI/mean-teacher). 
 
-## Note
-* Contact: Xiaomeng Li (xmengli999@gmail.com)
