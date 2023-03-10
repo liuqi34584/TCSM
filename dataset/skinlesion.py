@@ -121,8 +121,14 @@ def get_skinlesion_dataset(root, num_labels, transform_train=None, transform_val
     test_name = path_test_data
     train_name = path_train_data
 
+    print("\nskinlesion:124", len(train_data))
+    print("\nskinlesion:125", len(train_label))
+    print("\nskinlesion:126", len(train_name))
+    print("\nskinlesion:127", len(train_labeled_idxs))
+    print("\nskinlesion:128", train_unlabeled_idxs)
     train_labeled_dataset = skinlesion_labeled(train_data, train_label, name=train_name, indexs=train_labeled_idxs,
                                                transform=transform_train)
+
     train_unlabeled_dataset = skinlesion_unlabeled(train_data, train_label, indexs=train_unlabeled_idxs,
                                                    transform=TransformTwice(transform_train))
     val_dataset = skinlesion_labeled(val_data, val_label, name=val_name,  indexs=None, transform=transform_val)

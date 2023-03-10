@@ -3,8 +3,6 @@ import argparse
 import os
 os.environ['KMP_DUPLICATE_LIB_OK'] = "TRUE"
 os.environ['CUDA_LAUNCH_BLOCKING'] = "1"
-# Use CUDA
-os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 
 import shutil
 import random
@@ -28,7 +26,7 @@ from utils.utils import multi_validate, update_ema_variables
 
 parser = argparse.ArgumentParser(description='PyTorch MixMatch Training')
 # Optimization options
-parser.add_argument('--epochs', default=800, type=int, metavar='N',
+parser.add_argument('--epochs', default=10, type=int, metavar='N',
                     help='number of total epochs to run')
 parser.add_argument('--start-epoch', default=0, type=int, metavar='N',
                     help='manual epoch number (useful on restarts)')
@@ -64,7 +62,6 @@ parser.add_argument('--evaluate', action="store_true")
 parser.add_argument('--wlabeled', action="store_true")
 
 parser.add_argument('--scale', action="store_true")
-# parser.add_argument('--scale', action="store_true")
 
 parser.add_argument('--presdo', action="store_true")
 parser.add_argument('--tcsm', action="store_true")
@@ -102,6 +99,7 @@ state = {k: v for k, v in args._get_kwargs()}
 
 
 # Use CUDA
+os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 use_cuda = torch.cuda.is_available()  # print(use_cuda) True
 
 
@@ -159,22 +157,32 @@ def main():
         else:
             import dataset.skinlesion as dataset
             train_labeled_set, train_unlabeled_set, val_set, test_set = dataset.get_skinlesion_dataset("./data/skinlesion/",
-                                                        num_labels=args.n_labeled,
+                                                        num_labels=args.n_labeled, 
                                                         transform_train=transform_train,
                                                         transform_val=transform_val,
                                                         transform_forsemi=None)
 
-    num_workers = min([os.cpu_count(), args.batch_size if args.batch_size > 1 else 0, 8])
+    num_workers = min([os.cpu_count(), args.batch_size if args.batch_size > 1 else 0, 8]) # num_workers=0 直接赋值为0，编译速度反而变快
+
+    # 输出：main:166 2 6 说明这里都有数据
+    print("\n main 168:",len(train_labeled_set), len(train_unlabeled_set) ,len(val_set)) 
+
+    # drop_last为True会将多出来不足一个batch的数据丢弃
     labeled_trainloader = data.DataLoader(train_labeled_set, batch_size=args.batch_size, shuffle=True,
-                                          num_workers=num_workers, drop_last=True)
+                                          num_workers=0, drop_last=False)
+    
     if args.baseline:
         unlabeled_trainloader = None
     else:
         unlabeled_trainloader = data.DataLoader(train_unlabeled_set, batch_size=args.batch_size, shuffle=True,
-                                            num_workers=num_workers, drop_last=True)
+                                                num_workers=0, drop_last=False)
 
-    val_loader = data.DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=num_workers)
+    val_loader = data.DataLoader(val_set, batch_size=args.batch_size, shuffle=False, num_workers=0)
     # test_loader = data.DataLoader(test_set, batch_size=args.batch_size, shuffle=False, num_workers=2)
+
+    print("\n main 183:", len(list(labeled_trainloader)))
+    print("\n main 184:", len(list(unlabeled_trainloader)))
+    print("\n main 185:", len(list(val_loader)))
 
     # Model
     print("==> creating model")
@@ -224,13 +232,13 @@ def main():
     writer = SummaryWriter("runs/" + str(args.out.split("/")[-1]))
     writer.add_text('Text', str(args))
     for epoch in range(start_epoch, args.epochs):
+        print("训练次数:",epoch)
         # test
         if (epoch) % 50 == 0:
-            print('229:到这里加载很慢,大部分卡在这里', args)
+            # print('\n main 237:', args)
             val_loss, val_result = multi_validate(val_loader, model, criterion, epoch, use_cuda, args)
             test_loss, val_ema_result = multi_validate(val_loader, ema_model, criterion, epoch, use_cuda, args)
             step = args.val_iteration * (epoch)
-            print(val_loss, val_result, test_loss, val_ema_result)
 
             writer.add_scalar('Val/loss', val_loss, step)
             writer.add_scalar('Val/ema_loss', test_loss, step)
@@ -248,11 +256,25 @@ def main():
             writer.add_scalar('Ema_model/SP', val_ema_result[4], step)
             # scheduler.step()
 
+            print('Val/loss', val_loss, step)
+            print('Val/ema_loss', test_loss, step)
+
+            print('Model/JA', val_result[0], step)
+            print('Model/AC', val_result[1], step)
+            print('Model/DI', val_result[2], step)
+            print('Model/SE', val_result[3], step)
+            print('Model/SP', val_result[4], step)
+
+            print('Ema_model/JA', val_ema_result[0], step)
+            print('Ema_model/AC', val_ema_result[1], step)
+            print('Ema_model/DI', val_ema_result[2], step)
+            print('Ema_model/SE', val_ema_result[3], step)
+            print('Ema_model/SP', val_ema_result[4], step)
+
             # save model
             big_result = max(val_result[0], val_ema_result[0])
             is_best = big_result > best_acc
             best_acc = max(big_result, best_acc)
-            print('254：这里加载很慢')
             save_checkpoint({
                 'epoch': epoch,
                 'state_dict': model.state_dict(),
@@ -293,12 +315,13 @@ def train_meanteacher(labeled_trainloader, unlabeled_trainloader, model, ema_mod
     model.train()
     ema_model.train()
 
-    for batch_idx in range(args.val_iteration):
+    
+    for batch_idx in range(args.val_iteration):  
         try:
-            inputs_x, targets_x, name_x = labeled_train_iter.next()
+            inputs_x, targets_x, name_x = next(labeled_train_iter)
         except:
             labeled_train_iter = iter(labeled_trainloader)
-            inputs_x, targets_x, name_x = labeled_train_iter.next()
+            inputs_x, targets_x, name_x = next(labeled_train_iter)
 
         # inputs_x, targets_x = inputs_x.cuda(), targets_x.cuda(non_blocking=True)
         inputs_x, targets_x = inputs_x.cuda(), targets_x.cuda()
@@ -306,7 +329,6 @@ def train_meanteacher(labeled_trainloader, unlabeled_trainloader, model, ema_mod
         # 打印之后targets_x是一个tensor张量（里面的值全部为0），这里device='cuda:0'
 
         if not args.baseline:  # 初始化 args.baseline = False
-            global unlabeled_train_iter
             try:
                 inputs_u, inputs_u2 = unlabeled_train_iter.next()
             except:
@@ -314,7 +336,7 @@ def train_meanteacher(labeled_trainloader, unlabeled_trainloader, model, ema_mod
                 inputs_u, inputs_u2 = unlabeled_train_iter.next()
 
             if use_cuda:
-                # targets_x[targets_x == 255] = 1
+                targets_x[targets_x == 255] = 1
                 inputs_u = inputs_u.cuda()
                 inputs_u2 = inputs_u2.cuda()
 
@@ -401,11 +423,10 @@ def train_meanteacher(labeled_trainloader, unlabeled_trainloader, model, ema_mod
         # iter_num
         iter_num = batch_idx + epoch * args.val_iteration
         # lr = adjust_learning_rate(optimizer, epoch, batch_idx, args.val_iteration)
-        print("402行:")
         # labeled data
         logits_x = model(inputs_x)
-        print(logits_x, targets_x.long())
-        Lx = criterion(logits_x, targets_x.long())  # 这里的logits_x打印结果是-+0.5范围的tensor数据，targets_x是全为0的数据
+        # print(logits_x, targets_x)
+        Lx = criterion(logits_x, targets_x.long())  # 这里的logits_x是3.7676e-01的tensor数据，targets_x是全为0的数据
         # outputs_soft = F.softmax(logits_x, dim=1)
         # Lx_dice = dice_loss(outputs_soft[:, 1, :, :], targets_x.long())
         # Lx = 0.5 * (Lx + Lx_dice)
