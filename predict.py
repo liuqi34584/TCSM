@@ -7,7 +7,7 @@ import torch
 import utils.semantic_seg as transform
 import models.network as models
 import dataset.skinlesion as dataset
-import matplotlib.pyplot as plt
+from PIL import Image
 
 
 def create_model(ema=False):
@@ -46,15 +46,37 @@ def main():
         for batch_idx, (inputs, targets, name) in enumerate(val_loader):
             inputs = inputs.cuda()
 
-            # 新建空的原图大小numpy数组 
-            score_box = np.zeros((inputs.shape[0], 248, 248), dtype='float32') 
-
-            # 将三通道原图[1, 3, 248, 248]输入模型,然后softmax处理
+            # init 新建空的原图大小numpy数组 
+            score_box = np.zeros((inputs.shape[0], 248, 248), dtype='float32')
+            num_box = np.zeros((inputs.shape[0], 248, 248), dtype='uint8')
+            # compute output
             outputs = ema_model(inputs[:,:, 0:224,0:224], dropout=False)
             outputs = torch.softmax(outputs, dim=1)
-
-            # 将概率矩阵传递给score_box
             score_box[:, 0:224, 0:224] = outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 0:224, 0:224] = 1
+
+            outputs = ema_model(inputs[:, :, 24:248, 24:248], dropout=False)
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:, 24:248, 24:248] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 24:248, 24:248] += 1
+
+            outputs = ema_model(inputs[:, :, 0:224,24:248], dropout=False)
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:, 0:224, 24:248] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 0:224, 24:248] += 1
+
+            outputs = ema_model(inputs[:, :, 24:248,0:224], dropout=False)
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:,24:248,0:224] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:,24:248,0:224] += 1
+
+            score = score_box / (num_box + 1e-5)
+            print(score.shape)
+            img = score[0]
+            img[img >= 0.5] = 255
+            img[img < 0.5] = 0
+            img = Image.fromarray(img.astype(np.uint8))
+            img.save('./result/result_ema_model.png')
 
 
     model.eval()
@@ -62,15 +84,42 @@ def main():
         for batch_idx, (inputs, targets, name) in enumerate(val_loader):
             inputs = inputs.cuda()
 
-            # 新建空的原图大小numpy数组 
-            score_box = np.zeros((inputs.shape[0], 248, 248), dtype='float32') 
+            # init
+            score_box = np.zeros((inputs.shape[0], 248, 248), dtype='float32')
+            num_box = np.zeros((inputs.shape[0], 248, 248), dtype='uint8')
 
-            # 将三通道原图[1, 2, 224, 224]输入模型,然后softmax处理
+            # compute output
             outputs = model(inputs[:,:, 0:224,0:224], dropout=False)
+            # Lx1 = criterion(outputs, targets[:,0:224,0:224].long())
             outputs = torch.softmax(outputs, dim=1)
-
-            # 将概率矩阵传递给score_box
             score_box[:, 0:224, 0:224] = outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 0:224, 0:224] = 1
+
+            outputs = model(inputs[:, :, 24:248, 24:248], dropout=False)
+            # Lx2 = criterion(outputs, targets[:, 24:248, 24:248].long())
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:, 24:248, 24:248] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 24:248, 24:248] += 1
+
+            outputs = model(inputs[:, :, 0:224,24:248], dropout=False)
+            # Lx3 = criterion(outputs, targets[:, 0:224,24:248].long())
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:, 0:224, 24:248] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:, 0:224, 24:248] += 1
+
+            outputs = model(inputs[:, :, 24:248,0:224], dropout=False)
+            # Lx4 = criterion(outputs, targets[:, 24:248,0:224].long())
+            outputs = torch.softmax(outputs, dim=1)
+            score_box[:,24:248,0:224] += outputs[:,1,:,:].cpu().detach().numpy()
+            num_box[:,24:248,0:224] += 1
+
+            score = score_box / (num_box + 1e-5)
+            print(score.shape)
+            img = score[0]
+            img[img >= 0.5] = 255
+            img[img < 0.5] = 0
+            img = Image.fromarray(img.astype(np.uint8))
+            img.save('./result/result_model.png')
 
 
 if __name__ == '__main__':
