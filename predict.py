@@ -8,6 +8,61 @@ import utils.semantic_seg as transform
 import models.network as models
 import dataset.skinlesion as dataset
 from PIL import Image
+from scipy import ndimage
+from skimage import measure
+
+# 评价指标计算
+def post_process_evaluate(x, target):
+
+    JA_sum, AC_sum, DI_sum, SE_sum, SP_sum = [],[],[],[],[]
+
+    for i in range(x.shape[0]):
+        x_tmp = x[i]
+        target_tmp = target[i]
+
+        x_tmp[x_tmp >= 0.5] = 1
+        x_tmp[x_tmp <= 0.5] = 0
+        x_tmp = np.array(x_tmp, dtype='uint8')
+        x_tmp = ndimage.binary_fill_holes(x_tmp).astype(int)
+
+        # only reserve largest connected component.
+        box = []
+        [lesion, num] = measure.label(x_tmp, return_num=True)
+        if num == 0:
+            JA_sum.append(0)
+            AC_sum.append(0)
+            DI_sum.append(0)
+            SE_sum.append(0)
+            SP_sum.append(0)
+        else:
+            region = measure.regionprops(lesion)
+            for i in range(num):
+                box.append(region[i].area)
+            label_num = box.index(max(box)) + 1
+            lesion[lesion != label_num] = 0
+            lesion[lesion == label_num] = 1
+
+            #  calculate TP,TN,FP,FN
+            TP = float(np.sum(np.logical_and(lesion == 1, target_tmp == 1)))
+            # True Negative (TN): we predict a label of 0 (negative), and the true label is 0.
+            TN = float(np.sum(np.logical_and(lesion == 0, target_tmp == 0)))
+
+            # False Positive (FP): we predict a label of 1 (positive), but the true label is 0.
+            FP = float(np.sum(np.logical_and(lesion == 1, target_tmp == 0)))
+
+            # False Negative (FN): we predict a label of 0 (negative), but the true label is 1.
+            FN = float(np.sum(np.logical_and(lesion == 0, target_tmp == 1)))
+
+            #  calculate JA, Dice, SE, SP
+            JA = TP / ((TP + FN + FP + 1e-7))
+            AC = (TP + TN) / ((TP + FP + TN + FN + 1e-7))
+            DI = 2 * TP / ((2 * TP + FN + FP + 1e-7))
+            SE = TP / (TP + FN+1e-7)
+            SP = TN / ((TN + FP+1e-7))
+
+            JA_sum.append(JA); AC_sum.append(AC); DI_sum.append(DI); SE_sum.append(SE); SP_sum.append(SP)
+
+    return sum(JA_sum), sum(AC_sum), sum(DI_sum), sum(SE_sum), sum(SP_sum)
 
 
 def create_model(ema=False):
@@ -71,6 +126,10 @@ def main():
             num_box[:,24:248,0:224] += 1
 
             score = score_box / (num_box + 1e-5)
+            
+            results = post_process_evaluate(score, targets.cpu().detach().numpy())
+            print("\nJA:",results[0],"\nAC:",results[1],"\nDI:",results[2],"\nSE:",results[3],"\nSP:",results[4])
+
             print(score.shape)
             img = score[0]
             img[img >= 0.5] = 255
@@ -114,6 +173,10 @@ def main():
             num_box[:,24:248,0:224] += 1
 
             score = score_box / (num_box + 1e-5)
+
+            results = post_process_evaluate(score, targets.cpu().detach().numpy())
+            print("\nJA:",results[0],"\nAC:",results[1],"\nDI:",results[2],"\nSE:",results[3],"\nSP:",results[4])
+
             print(score.shape)
             img = score[0]
             img[img >= 0.5] = 255
