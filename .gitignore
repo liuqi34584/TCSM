@@ -2,3 +2,5 @@
 /exp
 /result
 /data
+/models/__pycache__
+/utils/__pycache__
